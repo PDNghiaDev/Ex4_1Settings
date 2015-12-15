@@ -7,7 +7,6 @@
 * `SettingsActivity` can be accessed by pressing the top-right menu button.
 * The UI should look like this:
 
-![settings_layout_por.png](images/ex4/ex41/settings_layout_por.png)
 
 * There are two options for this game:
     + Time limit: range from 5 sec to 60 sec. The value set here will affect the time of game afterwards. Default value is 10 sec.
