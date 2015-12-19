@@ -26,20 +26,20 @@ import java.util.Date;
 public class MainActivity extends AppCompatActivity {
     private static final String TAG = "MainActivity";
     private static final String TAG_RESULT_FRAGMENT = "ResultFragment";
-    public static final int TIME_COUNT = 10000; // 10s
-    public static final String TIME_KEY = "time_key";
-    public static final String NUMBER_COUNT = "number_count";
-    public static final String LAST_TIME = "last_time";
-    public static final String TIME = "time";
+    public static final String CURRENT_TIME = "current_time";
+    public static final String COUNT_CHANGE = "count_change";
+    public static final String START_TIME = "start_time";
+    public static final String DURATION_TIME = "duration_time";
+    public static final String COUNT = "count";
     private Button mBtnStart, mBtnTap;
     private Chronometer mTime;
     private TextView mCountTap; // Save the count tap when user press
-    private long mStartTime; // Get the time when start
+    private long mStartTime = 0; // Get the time when start
     private int mCount; // Save the count tap after load screen again
     private TapCountResultFragment fragment; // Fragment show list highscore
-    private long mLastStopTime; //  Get the time when configuration change or press Home
-    private long mTimeKey; // Get the time of Chronometer
-    private long mDuration;
+    private long mDurationTime = 0; // Thời gian đã trôi qua
+    private long mCurrentTime = 0; // Thời gian lúc người dùng xoay màn hình
+    private int countChange = 0; // Số lần xoay màn hình
     private int time_count;
     private boolean recored;
 
@@ -50,49 +50,6 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         loadComponents();
-
-        // SharedPreference
-        SharedPreferences sharedPreferences = getSharedPreferences(UserContract.SETTINGS_PREFERENCE, MODE_PRIVATE);
-        time_count = sharedPreferences.getInt(UserContract.SETTINGS_TIME, 10) * 1000;
-        Log.d(TAG, "onCreate: " + time_count);
-        recored = sharedPreferences.getBoolean(UserContract.SETTINGS_HIGHSCORE, true);
-        Log.d(TAG, "onCreate: " + recored);
-        // Tại sao khi nhấn nút Back thì List mất hết ???
-
-        if (savedInstanceState != null) {
-            mLastStopTime = savedInstanceState.getLong(LAST_TIME);
-            mTimeKey = savedInstanceState.getLong(TIME_KEY);
-            if (mTimeKey > 0) {
-                mTime.setBase(mTimeKey);
-                mBtnStart.setText("Resume");
-            } else {
-                mTime.setBase(SystemClock.elapsedRealtime());
-            }
-            mCount = savedInstanceState.getInt(NUMBER_COUNT);
-            mCountTap.setText(String.valueOf(mCount));
-            mDuration = savedInstanceState.getLong(TIME);
-        } else {
-            mLastStopTime = 0;
-        }
-
-        mTime.setOnChronometerTickListener(new Chronometer.OnChronometerTickListener() {
-            @Override
-            public void onChronometerTick(Chronometer chronometer) {
-                long totalTime = time_count - mDuration;
-
-                if (mLastStopTime == 0) { // If the screen isn't configuration change
-                    if (SystemClock.elapsedRealtime() - mStartTime >= time_count) {
-                        pauseTapping();
-                    }
-                } else { // If the screen is configuration change
-                    if (SystemClock.elapsedRealtime() - mStartTime >= totalTime) {
-                        pauseTapping();
-                        mLastStopTime = 0;
-                    }
-                }
-
-            }
-        });
 
         mBtnStart.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -130,6 +87,26 @@ public class MainActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         Log.d(TAG, "onResume");
+        // SharedPreference
+        SharedPreferences sharedPreferences = getSharedPreferences(UserContract.SETTINGS_PREFERENCE, Context.MODE_PRIVATE);
+        time_count = sharedPreferences.getInt(UserContract.SETTINGS_TIME, 10) * 1000;
+        recored = sharedPreferences.getBoolean(UserContract.SETTINGS_HIGHSCORE, true);
+
+        mTime.setOnChronometerTickListener(new Chronometer.OnChronometerTickListener() {
+            @Override
+            public void onChronometerTick(Chronometer chronometer) {
+                if (countChange == 0) { // Trạng thái đầu tiên chạy từ 0 -> TIME_COUNT
+                    if (SystemClock.elapsedRealtime() - mStartTime >= time_count) {
+                        pauseTapping();
+                    }
+                } else { // Trạng thái đang chạy tạm dừng 0 -> 2s -> 4s -> TIME_COUNT
+                    long totalTime = time_count - mDurationTime; // Tổng số thời gian còn lại sau khi trừ đi thời gian trôi qua VD: 10 - 2 = 8
+                    if (SystemClock.elapsedRealtime() - mStartTime >= totalTime) {
+                        pauseTapping();
+                    }
+                }
+            }
+        });
     }
 
     @Override
@@ -151,27 +128,38 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void startTapping() {
+        // Thay đổi trạng thái Button
+        mBtnStart.setEnabled(false);
+        mBtnTap.setEnabled(true);
 
         mStartTime = SystemClock.elapsedRealtime();
-        if (mLastStopTime == 0) { // If the screen isn't configuration change
-            mTime.setBase(SystemClock.elapsedRealtime());
-            mCount = 0;
-        } else { // If the screen is configuration change
-            long intervalOnPause = (SystemClock.elapsedRealtime() - mLastStopTime);
-            mTime.setBase(mTimeKey + intervalOnPause);
-        }
-        mTime.start();
-        mBtnTap.setEnabled(true);
-        mBtnStart.setEnabled(false);
 
+        if (countChange == 0) { // Trạng thái lần đầu nhấn
+            mTime.setBase(SystemClock.elapsedRealtime()); // Thiết lập thòi gian theo hệ thống 00:00
+            mCount = 0;
+        } else { // Trạng thái khi xoay màn hình
+            mTime.setBase(SystemClock.elapsedRealtime() - mDurationTime); // Thiết lập thời gian sau khi trừ đi thời gian đã trôi qua => VD: 00:02
+        }
+
+        // Chạy Chronometer
+        mTime.start();
         mCountTap.setText(String.valueOf(mCount));
     }
 
     private void pauseTapping() {
+        // Thay đổi trạng thái Button
         mBtnTap.setEnabled(false);
-        mTime.stop();
         mBtnStart.setEnabled(true);
         mBtnStart.setText("Start");
+
+        // Trở lại mặc định
+        countChange = 0;
+        mStartTime = 0;
+        mCurrentTime = 0;
+        mDurationTime = 0;
+
+        // Dừng Chronometer
+        mTime.stop();
 
         // Pass Object to Fragment
         if (recored) {
@@ -188,25 +176,46 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     protected void onSaveInstanceState(Bundle outState) {
-        mTime.stop();
-        mLastStopTime = SystemClock.elapsedRealtime();
-        mDuration = SystemClock.elapsedRealtime() - mStartTime;
-        if (mDuration < time_count) {
-            outState.putLong(TIME_KEY, mTime.getBase());
-            outState.putLong(LAST_TIME, mLastStopTime);
-            outState.putLong(TIME, mDuration);
-            outState.putInt(NUMBER_COUNT, mCount);
-        }
-
-        mBtnStart.setEnabled(true);
         super.onSaveInstanceState(outState);
         Log.d(TAG, "onSaveInstanceState: ");
+        mTime.stop();
+
+        if (mStartTime == 0) {
+            countChange = 0;
+        } else {
+            if (mCurrentTime == 0) {
+                countChange++;
+                mCurrentTime = SystemClock.elapsedRealtime(); // Thời gian khi xoay màn hình
+            } else {
+                if (mCurrentTime - mStartTime != mDurationTime) { // Kiểm tra trạng thái khi bấm Resume sau 1 thời gian
+                    // VD: Khi 00:02 và bấm Resume đến 00:04 thì xoay màn hình
+                    mCurrentTime = SystemClock.elapsedRealtime() + mDurationTime;
+                }
+            }
+            mDurationTime = mCurrentTime - mStartTime;
+            outState.putLong(DURATION_TIME, mDurationTime);
+            outState.putLong(START_TIME, mStartTime);
+            outState.putLong(CURRENT_TIME, mCurrentTime);
+        }
+        outState.putInt(COUNT_CHANGE, countChange);
+        outState.putInt(COUNT, mCount);
     }
 
     @Override
     protected void onRestoreInstanceState(Bundle savedInstanceState) {
         super.onRestoreInstanceState(savedInstanceState);
         Log.d(TAG, "onRestoreInstanceState: ");
+
+        countChange = savedInstanceState.getInt(COUNT_CHANGE);
+        mDurationTime = savedInstanceState.getLong(DURATION_TIME);
+        mStartTime = savedInstanceState.getLong(START_TIME);
+        mCurrentTime = savedInstanceState.getLong(CURRENT_TIME);
+        mCount = savedInstanceState.getInt(COUNT);
+        if (countChange != 0) {
+            mTime.setBase(SystemClock.elapsedRealtime() - mDurationTime);
+            mBtnStart.setText("Resume");
+        }
+        mCountTap.setText(String.valueOf(mCount));
     }
 
     @Override
@@ -218,7 +227,6 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public boolean onOptionsItemSelected(MenuItem item) {
         if (item.getItemId() == R.id.action_settings) {
-            Log.d(TAG, "onOptionsItemSelected: ");
             Intent intent = new Intent(MainActivity.this, SettingsActivity.class);
             startActivity(intent);
         }

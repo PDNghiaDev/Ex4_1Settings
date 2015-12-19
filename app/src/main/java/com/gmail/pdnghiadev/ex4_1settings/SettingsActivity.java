@@ -8,6 +8,7 @@ import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.support.v7.widget.SwitchCompat;
 import android.util.Log;
+import android.view.MenuItem;
 import android.widget.CompoundButton;
 import android.widget.SeekBar;
 import android.widget.TextView;
@@ -22,18 +23,23 @@ public class SettingsActivity extends AppCompatActivity implements SeekBar.OnSee
     private int time;
     private boolean recored;
     private SharedPreferences sharedPreferences;
+    private SharedPreferences.Editor editor;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        Log.d(TAG, "onCreate: ");
         setContentView(R.layout.activity_settings);
 
         loadComponents();
+
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
 
         mSkTime.setOnSeekBarChangeListener(this);
         mSwHighScore.setOnCheckedChangeListener(this);
 
         sharedPreferences = getSharedPreferences(UserContract.SETTINGS_PREFERENCE, Context.MODE_PRIVATE);
+
         time = sharedPreferences.getInt(UserContract.SETTINGS_TIME, 10);
         recored = sharedPreferences.getBoolean(UserContract.SETTINGS_HIGHSCORE, true);
         mSwHighScore.setChecked(recored);
@@ -48,13 +54,18 @@ public class SettingsActivity extends AppCompatActivity implements SeekBar.OnSee
     }
 
     @Override
-    protected void onStop() {
-        super.onStop();
-        // SharedPreference
-        SharedPreferences.Editor editor = sharedPreferences.edit();
+    protected void onPause() {
+        super.onPause();
+        editor = sharedPreferences.edit();
         editor.putInt(UserContract.SETTINGS_TIME, time);
         editor.putBoolean(UserContract.SETTINGS_HIGHSCORE, recored);
-        editor.apply();
+        editor.commit();
+    }
+
+    @Override
+    protected void onStop() {
+        super.onStop();
+        Log.d(TAG, "onStop: ");
     }
 
     @Override
@@ -78,5 +89,13 @@ public class SettingsActivity extends AppCompatActivity implements SeekBar.OnSee
         if (buttonView.getId() == R.id.sw_setting_highscore) {
             recored = isChecked;
         }
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        if (item.getItemId() == android.R.id.home) {
+            finish();
+        }
+        return super.onOptionsItemSelected(item);
     }
 }
